@@ -47,9 +47,7 @@ use std::time::{Duration, Instant};
 
 const RANGE_PARAM: f64 = 25.00;
 const WINDOW_START_PCT: f64 = 0.00;
-// Keys walked sequentially from each random start point.
 const CHUNK: u128 = 1 << 20;
-// Keys processed between stop-flag checks / counter flushes.
 const BATCH: u64 = 1 << 12;
 
 const TARGET_ADDRESS: &str = "1PWo3JeB9jrGwfHDNpdGK54CRas7fsVzXU";
@@ -119,8 +117,6 @@ fn worker(
             core_affinity::set_for_current(ids[idx % ids.len()]);
         }
     }
-    // Only the signing context is needed (from_secret_key); it builds a much
-    // smaller precomputation table than Secp256k1::new().
     let secp = Secp256k1::signing_only();
     let g = PublicKey::from_secret_key(&secp, &SecretKey::from_slice(&key_bytes(1)).unwrap());
     let span = hi - lo + 1;
@@ -146,7 +142,6 @@ fn worker(
                     Ok(p) => p,
                     Err(_) => {
                         counter.fetch_add(j, Ordering::Relaxed);
-                        // Point at infinity: restart from a new random start.
                         done = chunk;
                         break;
                     }
@@ -213,7 +208,8 @@ fn main() {
     }
 
     let total: u64 = counters.iter().map(|c| c.0.load(Ordering::Relaxed)).sum();
-    match *found.lock().unwrap() {
+    let result = found.lock().unwrap().clone();
+    match result {
         Some(k) => {
             let line = format!("{} {:064x}", TARGET_ADDRESS, k);
             println!("\n\nFOUND\nPrivate key: {:064x}\nAddress    : {}", k, privkey_to_address(k));
